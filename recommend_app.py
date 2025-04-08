@@ -8,22 +8,26 @@ st.title("📈 단타 전략 종목 추천기 - 돌파 & 눌림목 전략")
 
 # 날짜 설정
 today = datetime.today()
-start_date = today - timedelta(days=60)
+start_date = today - timedelta(days=180)  # 6개월
 start_str = start_date.strftime('%Y%m%d')
 end_str = today.strftime('%Y%m%d')
 
-# 시가총액 상위 300개 종목
+# 필터 기준
+MIN_MARKET_CAP = 300_000_000_000  # 3000억
+MIN_AMOUNT = 10_000_000_000       # 거래대금 10억
+
+# 시가총액 3000억 이상 종목만 추출
 @st.cache_data
-def get_stock_list():
+def get_filtered_stock_list():
     today_str = datetime.today().strftime('%Y%m%d')
     cap_df = stock.get_market_cap_by_ticker(today_str)
     cap_df = cap_df.reset_index()
     cap_df['Name'] = cap_df['티커'].apply(stock.get_market_ticker_name)
     cap_df = cap_df.rename(columns={'티커': 'Code', '시가총액': 'MarketCap'})
-    cap_df = cap_df.sort_values(by='MarketCap', ascending=False)
-    return cap_df[['Code', 'Name']].head(500)
+    cap_df = cap_df[cap_df['MarketCap'] >= MIN_MARKET_CAP]
+    return cap_df[['Code', 'Name', 'MarketCap']].reset_index(drop=True)
 
-stock_list = get_stock_list()
+stock_list = get_filtered_stock_list()
 breakout_list, pullback_list = [], []
 
 status_text = st.empty()
@@ -32,12 +36,9 @@ log_box = st.empty()
 log_messages = []
 total = len(stock_list)
 
-# 최소 거래대금 10억 이상
-min_amount = 10_000_000_000
-
 with st.spinner("종목 분석 중..."):
     for i, row in enumerate(stock_list.itertuples(index=False)):
-        code, name = row.Code, row.Name
+        code, name, market_cap = row.Code, row.Name, row.MarketCap
 
         status_text.text(f"종목 분석 중... ⏳ ({name})")
         progress.progress((i + 1) / total)
@@ -47,14 +48,15 @@ with st.spinner("종목 분석 중..."):
             if df is None or df.empty:
                 log_messages.append(f"⛔ 데이터 없음: {name}")
                 continue
-            
-            # 거래량 또는 거래대금이 0인 날이 많다면 거래 정지 가능성 있음
-            if df['거래량'][-3:].sum() == 0:
-                continue
 
             df = df.dropna()
             if len(df) < 25:
                 log_messages.append(f"⛔ 데이터 부족 (<25일): {name}")
+                continue
+
+            df['거래대금'] = df['종가'] * df['거래량']
+            if df.iloc[-1]['거래대금'] < MIN_AMOUNT:
+                log_messages.append(f"⛔ 거래대금 부족 (10억 미만): {name}")
                 continue
 
             df['MA20'] = df['종가'].rolling(window=20).mean()
@@ -63,12 +65,9 @@ with st.spinner("종목 분석 중..."):
                 log_messages.append(f"⛔ MA20 이후 usable 데이터 부족: {name}")
                 continue
 
-            # ✅ 거래대금 계산 추가
-            df['거래대금'] = df['종가'] * df['거래량']
-
-            # ✅ 거래 정지 필터 (10억 미만 제거)
-            if df.iloc[-1]['거래대금'] < 10_000_000_000:
-                continue
+            # ✅ 거래량 급등 이력 확인
+            volume_spike = (df['거래량'] > df['거래량'].shift(1) * 3).any()
+            volume_spike_flag = "✅ 예" if volume_spike else "❌ 아니오"
 
             curr = df.iloc[-1]
             prev = df.iloc[-2]
@@ -87,6 +86,8 @@ with st.spinner("종목 분석 중..."):
                     '매수가': round(prev['고가'] * 1.005, 2),
                     '손절가': round(prev['종가'] * 0.97, 2),
                     '목표가': round(prev['고가'] * 1.05, 2),
+                    '시가총액': f"{int(market_cap / 1e8):,}억",
+                    '거래량 급등 이력': volume_spike_flag,
                     '기준일': df.index[-2].strftime('%Y-%m-%d')
                 })
 
@@ -102,6 +103,8 @@ with st.spinner("종목 분석 중..."):
                     '매수가': round(curr['종가'] * 1.005, 2),
                     '손절가': round(curr['MA20'] * 0.98, 2),
                     '목표가': round(high3, 2),
+                    '시가총액': f"{int(market_cap / 1e8):,}억",
+                    '거래량 급등 이력': volume_spike_flag,
                     '기준일': df.index[-1].strftime('%Y-%m-%d')
                 })
 
@@ -112,7 +115,7 @@ with st.spinner("종목 분석 중..."):
             log_box.text("\n".join(log_messages[-8:]))
             continue
 
-# 분석 종료 후 UI 정리
+# UI 정리
 log_box.empty()
 status_text.empty()
 progress.empty()
