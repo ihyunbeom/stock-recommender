@@ -76,11 +76,27 @@ with st.spinner("종목 분석 중..."):
             vol_avg = df['거래량'].iloc[-6:-1].mean()
             next_trade_date = (df.index[-1] + timedelta(days=1)).strftime('%Y-%m-%d')
 
+            # 이동평균선 MA40, MA60 계산
+            df['MA5'] = df['종가'].rolling(window=5).mean()
+            df['MA40'] = df['종가'].rolling(window=40).mean()
+            df['MA60'] = df['종가'].rolling(window=60).mean()
+
+
+            ma5 = df.iloc[-1]['MA5']
+            ma40 = df.iloc[-1]['MA40']
+            ma60 = df.iloc[-1]['MA60']
+            cross_ma40 = "✅" if ma5 > ma40 else "❌"
+            cross_ma60 = "✅" if ma5 > ma60 else "❌"
+
+            # MA 돌파 조건 필터링
+            if not (ma5 > ma40 or ma5 > ma60):
+                continue
+
             # 돌파 전략
             if (
                 curr['종가'] >= curr['고가'] * 0.9 and
                 curr['거래량'] >= vol_avg * 1.4 and
-                curr['종가'] > curr['시가']
+                curr['종가'] > curr['시가'] 
             ):
                 entry_price = round(curr['종가'], 2)
                 stop_price = round(curr['종가'] * 0.97, 2)
@@ -93,7 +109,9 @@ with st.spinner("종목 분석 중..."):
                     '종가': entry_price,
                     '손절가': stop_price,
                     '목표가': target_price,
-                    '시가총액': f"{int(market_cap / 1e8):,}억",
+                    '시가총액': f"{int(market_cap / 1e8):,}억",                    
+                    'MA5>MA40': cross_ma40,
+                    'MA5>MA60': cross_ma60,
                     # '거래량 급등 이력': volume_spike_flag,
                     # '기준일': df.index[-1].strftime('%Y-%m-%d'),
                     # '매수 예정일': next_trade_date
