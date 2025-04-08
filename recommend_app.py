@@ -130,7 +130,7 @@ with st.spinner("종목 분석 중..."):
                 pullback_list.append({
                     '종목명': name,
                     # '전략': '눌림목',
-                    '현재가': curr['종가'],
+                    # '현재가': curr['종가'],
                     '매수가': entry_price,
                     '손절가': stop_price,
                     '목표가': target_price,
