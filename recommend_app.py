@@ -1,98 +1,88 @@
 import pandas as pd
 import numpy as np
 import streamlit as st
-import FinanceDataReader as fdr
 from datetime import datetime, timedelta
+from pykrx import stock
 
 st.title("📈 단타 전략 종목 추천기 - 돌파 & 눌림목 전략")
 
 # 날짜 설정
 today = datetime.today()
 start_date = today - timedelta(days=30)
-start_str = start_date.strftime('%Y-%m-%d')
+start_str = start_date.strftime('%Y%m%d')
+end_str = today.strftime('%Y%m%d')
 
 # 종목 리스트 불러오기
 @st.cache_data
 def get_stock_list():
-    df = fdr.StockListing('KRX')
-    df = df.sort_values(by='Marcap', ascending=False)
-    return df[['Code', 'Name']].head(1000)
+    codes = stock.get_market_ticker_list(market="ALL")
+    names = [stock.get_market_ticker_name(code) for code in codes]
+    df = pd.DataFrame({"Code": codes, "Name": names})
+    return df.head(2000)  # 속도 위해 상위 100개만
 
 stock_list = get_stock_list()
 breakout_list = []
 pullback_list = []
-status_text = st.empty()  # 여기에 종목 이름이 실시간으로 뜰 거야
+
+status_text = st.empty()
 progress = st.progress(0)
 total = len(stock_list)
 
 with st.spinner("종목 분석 중..."):
-    for i, (_, row) in enumerate(stock_list.iterrows()):
-        code = row['Code']
-        name = row['Name']
+    for i, row in enumerate(stock_list.itertuples(index=False)):
+        code = row.Code
+        name = row.Name
 
-        # 실시간 종목명 업데이트
         status_text.text(f"종목 분석 중... 잠시만 기다려 주세요 ⏳ ({name})")
-
-        # 진행률 업데이트
         progress.progress((i + 1) / total)
 
         try:
-            df = fdr.DataReader(code, start=start_str)
-            
-            # 거래 정지 종목 필터링 (경고 없는 버전)
-            if df['Close'].iloc[-1] == 0 or df['Volume'].iloc[-1] == 0:
-                continue
-            
-            # 3일 이상 연속 데이터가 없는 경우
-            if len(df.dropna()) < 5:
-                continue
-
+            df = stock.get_market_ohlcv_by_date(start_str, end_str, code)
+            df = df.dropna()
             if len(df) < 20:
                 continue
 
-            df['MA20'] = df['Close'].rolling(window=20).mean()
+            df['MA20'] = df['종가'].rolling(window=20).mean()
             df = df.dropna()
-
             curr = df.iloc[-1]
             prev = df.iloc[-2]
-            prev2 = df.iloc[-3]
-            vol_avg = df['Volume'][-5:].mean()
+            high3 = df.iloc[-4]['고가']
+            vol_avg = df['거래량'][-5:].mean()
 
-            # ✅ 돌파 전략 조건
+            # 돌파 전략 조건
             if (
-                prev['Close'] >= prev['High'] * 0.9 and
-                prev['Volume'] >= vol_avg * 1.5 and
-                prev['Close'] > prev['Open']
+                prev['종가'] >= prev['고가'] * 0.9 and
+                prev['거래량'] >= vol_avg * 1.5 and
+                prev['종가'] > prev['시가']
             ):
-                entry_price = round(prev['High'] * 1.005, 2)
-                stop_loss = round(prev['Close'] * 0.97, 2)
-                target_price = round(prev['High'] * 1.05, 2)
+                entry_price = round(prev['고가'] * 1.005, 2)
+                stop_loss = round(prev['종가'] * 0.97, 2)
+                target_price = round(prev['고가'] * 1.05, 2)
 
                 breakout_list.append({
                     '종목명': name,
                     '전략': '돌파',
-                    '현재가': curr['Close'],
+                    '현재가': curr['종가'],
                     '매수가': entry_price,
                     '손절가': stop_loss,
                     '목표가': target_price,
                     '기준일': df.index[-2].strftime('%Y-%m-%d')
                 })
 
-            # ✅ 눌림목 전략 조건
-            high3 = df.iloc[-4]['High']
+            # 눌림목 전략 조건
             if (
-                high3 * 0.9 <= curr['Close'] <= high3 * 0.95 and
-                abs(curr['Close'] - curr['MA20']) / curr['MA20'] < 0.02 and
-                curr['Volume'] < vol_avg
+                high3 * 0.9 <= curr['종가'] <= high3 * 0.95 and
+                abs(curr['종가'] - curr['MA20']) / curr['MA20'] < 0.02 and
+                curr['거래량'] < vol_avg
             ):
-                entry_price = round(curr['Close'] * 1.005, 2)
-                stop_loss = round(df.iloc[-1]['MA20'] * 0.98, 2)
+                entry_price = round(curr['종가'] * 1.005, 2)
+                stop_loss = round(curr['MA20'] * 0.98, 2)
                 target_price = round(high3, 2)
 
                 pullback_list.append({
                     '종목명': name,
                     '전략': '눌림목',
-                    '현재가': curr['Close'],
+                    '현재가': curr['종가'],
                     '매수가': entry_price,
                     '손절가': stop_loss,
                     '목표가': target_price,
