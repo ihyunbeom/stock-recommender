@@ -24,7 +24,7 @@ def get_filtered_stock_list():
     cap_df['Name'] = cap_df['티커'].apply(stock.get_market_ticker_name)
     cap_df = cap_df.rename(columns={'티커': 'Code', '시가총액': 'MarketCap'})
     cap_df = cap_df[cap_df['MarketCap'] >= MIN_MARKET_CAP]    
-    cap_df = cap_df[~cap_df['Name'].str.contains(r'(우$|\d우[B|C]?$)', regex=True)] # 우선주 정밀 필터링
+    cap_df = cap_df[~cap_df['Name'].str.contains(r'(?:우$|\d우[B|C]?$)', regex=True)] # 우선주 정밀 필터링
     return cap_df[['Code', 'Name', 'MarketCap']].reset_index(drop=True)
 
 stock_list = get_filtered_stock_list()
