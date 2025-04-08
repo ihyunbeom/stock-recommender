@@ -18,7 +18,7 @@ def get_stock_list():
     codes = stock.get_market_ticker_list(market="ALL")
     names = [stock.get_market_ticker_name(code) for code in codes]
     df = pd.DataFrame({"Code": codes, "Name": names})
-    return df.head(2000)  # 속도 위해 상위 100개만
+    return df.head(10)  # 속도 위해 상위 100개만
 
 stock_list = get_stock_list()
 breakout_list = []
