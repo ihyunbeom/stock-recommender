@@ -131,7 +131,7 @@ with st.spinner("종목 분석 중..."):
                     '종목명': name,
                     # '전략': '눌림목',
                     # '현재가': curr['종가'],
-                    '매수가': entry_price,
+                    '종가': entry_price,
                     '손절가': stop_price,
                     '목표가': target_price,
                     '시가총액': f"{int(market_cap / 1e8):,}억",
