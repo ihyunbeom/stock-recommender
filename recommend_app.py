@@ -21,7 +21,7 @@ def get_stock_list():
     cap_df['Name'] = cap_df['티커'].apply(stock.get_market_ticker_name)
     cap_df = cap_df.rename(columns={'티커': 'Code', '시가총액': 'MarketCap'})
     cap_df = cap_df.sort_values(by='MarketCap', ascending=False)
-    return cap_df[['Code', 'Name']].head(2000)
+    return cap_df[['Code', 'Name']].head(500)
 
 stock_list = get_stock_list()
 breakout_list, pullback_list = [], []
@@ -31,6 +31,9 @@ progress = st.progress(0)
 log_box = st.empty()
 log_messages = []
 total = len(stock_list)
+
+# 최소 거래대금 10억 이상
+min_amount = 10_000_000_000
 
 with st.spinner("종목 분석 중..."):
     for i, row in enumerate(stock_list.itertuples(index=False)):
@@ -44,6 +47,10 @@ with st.spinner("종목 분석 중..."):
             if df is None or df.empty:
                 log_messages.append(f"⛔ 데이터 없음: {name}")
                 continue
+            
+            # 거래량 또는 거래대금이 0인 날이 많다면 거래 정지 가능성 있음
+            if df['거래량'][-3:].sum() == 0:
+                continue
 
             df = df.dropna()
             if len(df) < 25:
@@ -54,6 +61,13 @@ with st.spinner("종목 분석 중..."):
             df = df.dropna()
             if len(df) < 3:
                 log_messages.append(f"⛔ MA20 이후 usable 데이터 부족: {name}")
+                continue
+
+            # ✅ 거래대금 계산 추가
+            df['거래대금'] = df['종가'] * df['거래량']
+
+            # ✅ 거래 정지 필터 (10억 미만 제거)
+            if df.iloc[-1]['거래대금'] < 10_000_000_000:
                 continue
 
             curr = df.iloc[-1]
