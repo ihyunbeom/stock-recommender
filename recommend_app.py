@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pykrx import stock
 
 st.set_page_config(page_title="단타 전략 종목 추천기", layout="wide")
-st.title("📈 단타 전략 종목 추천기 - 돌파 & 눌림목 전략")
+st.title("📈 단타 전략 종목 추천기 - 돌파 & 눌림목 전략 3000억 이상")
 
 # 날짜 설정
 today = datetime.today()
