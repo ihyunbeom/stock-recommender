@@ -136,8 +136,8 @@ if st.button("🔍 분석 시작", disabled=st.session_state['분석중']):
                 등락률 = round(curr['하락률'], 2)
 
                 # 현재가와 추천 매수가 차이가 크면 제외
-                if abs(buy_price / close - 1) > 0.02:
-                    log_messages.append(f"⛔ 현재가와 추천 매수가 차이가 2% 이상: {name}")
+                if abs(buy_price / close - 1) > 0.05:
+                    log_messages.append(f"⛔ 현재가와 추천 매수가 차이가 5% 이상: {name}")
                     continue
 
                 # 볼린저 상단 근처에 근접한 종목 제외
